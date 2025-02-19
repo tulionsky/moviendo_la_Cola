@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Trending Videos</title>
+  <style>
+    :root {
+      --primary-color: #ff0000;
+      --secondary-color: #282828;
+      --text-color: #ffffff;
+      --card-bg: #1f1f1f;
+      --hover-color: #2d2d2d;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Roboto', sans-serif;
+    }
+
+    body {
+      background-color: var(--secondary-color);
+      color: var(--text-color);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+      padding: 1rem;
+      background: var(--card-bg);
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .header h1 {
+      color: var(--primary-color);
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    #refresh-button {
+      background-color: var(--primary-color);
+      color: var(--text-color);
+      border: none;
+      padding: 12px 24px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: transform 0.2s, background-color 0.2s;
+      box-shadow: 0 2px 4px rgba(255, 0, 0, 0.2);
+    }
+
+    #refresh-button:hover {
+      transform: translateY(-2px);
+      background-color: #ff1a1a;
+    }
+
+    #videos-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.5rem;
+      padding: 1rem;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .video-item {
+      background: var(--card-bg);
+      border-radius: 15px;
+      overflow: hidden;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .video-item:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .thumbnail-container {
+      position: relative;
+      width: 100%;
+      padding-top: 56.25%; /* 16:9 Aspect Ratio */
+      overflow: hidden;
+    }
+
+    .thumbnail-container img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+
+    .video-item:hover .thumbnail-container img {
+      transform: scale(1.05);
+    }
+
+    .video-info {
+      padding: 1.5rem;
+    }
+
+    .video-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.8rem;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .channel-name {
+      color: #aaa;
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .views-count {
+      color: #888;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+
+    .watch-button {
+      display: inline-block;
+      background-color: var(--primary-color);
+      color: var(--text-color);
+      text-decoration: none;
+      padding: 0.8rem 1.5rem;
+      border-radius: 20px;
+      font-weight: 500;
+      transition: background-color 0.2s, transform 0.2s;
+    }
+
+    .watch-button:hover {
+      background-color: #ff1a1a;
+      transform: translateY(-2px);
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 1rem;
+      }
+
+      .header h1 {
+        font-size: 2rem;
+      }
+
+      #videos-container {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      }
+    }
+
+    .loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .loading.active {
+      display: flex;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+<div class="header">
+  <h1>YouTube Trending Videos</h1>
+  <button id="refresh-button">
+    Actualizar Videos
+  </button>
+</div>
+
+<div id="videos-container"></div>
+
+<div class="loading">
+  <div class="spinner"></div>
+</div>
+
+<script type="module">
+  import { YouTubeVideoQueue } from './YouTubeVideoQueue.js';
+
+  const loading = document.querySelector('.loading');
+
+  function showLoading() {
+    loading.classList.add('active');
+  }
+
+  function hideLoading() {
+    loading.classList.remove('active');
+  }
+
+  function displayVideos(videos) {
+    const container = document.getElementById('videos-container');
+    container.innerHTML = '';
+
+    videos.forEach(video => {
+      // Reemplazar la miniatura por defecto con la de alta calidad
+      const highQualityThumbnail = video.thumbnail.replace('default', 'maxresdefault');
+
+      const videoElement = document.createElement('div');
+      videoElement.className = 'video-item';
+      videoElement.innerHTML = `
+                    <div class="thumbnail-container">
+                        <img src="${highQualityThumbnail}" alt="${video.title}">
+                    </div>
+                    <div class="video-info">
+                        <h3 class="video-title">${video.title}</h3>
+                        <p class="channel-name">${video.channelTitle}</p>
+                        <p class="views-count">${parseInt(video.viewCount).toLocaleString()} visualizaciones</p>
+                        <a href="https://www.youtube.com/watch?v=${video.id}"
+                           class="watch-button"
+                           target="_blank">
+                            Ver video
+                        </a>
+                    </div>
+                `;
+      container.appendChild(videoElement);
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const youtubeQueue = new YouTubeVideoQueue('API_KEY');
+
+    async function loadVideos() {
+      try {
+        showLoading();
+        const queue = await youtubeQueue.fetchPopularVideos();
+        const videos = [];
+        while (!queue.isEmpty()) {
+          videos.push(queue.dequeue());
+        }
+        displayVideos(videos);
+      } catch (error) {
+        console.error('Error al cargar videos:', error);
+        alert('Error al cargar los videos. Por favor, intenta más tarde.');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Cargar videos iniciales
+    await loadVideos();
+
+    // Agregar evento para actualizar videos
+    document.getElementById('refresh-button').addEventListener('click', loadVideos);
+  });
+</script>
+</body>
+</html>
